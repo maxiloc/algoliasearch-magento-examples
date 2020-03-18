@@ -1,11 +1,11 @@
 document.addEventListener("DOMContentLoaded", function(event) {
 	algoliaBundle.$(function ($) {
-		
+
 		/** We have nothing to do here if autocomplete is disabled **/
 		if (!algoliaConfig.autocomplete.enabled) {
 			return;
 		}
-		
+
 		/**
 		 * Set autocomplete templates
 		 * For templating is used Hogan library
@@ -18,43 +18,78 @@ document.addEventListener("DOMContentLoaded", function(event) {
 			pages: algoliaBundle.Hogan.compile($('#autocomplete_pages_template').html()),
 			additionnalSection: algoliaBundle.Hogan.compile($('#autocomplete_extra_template').html())
 		};
-		
+
 		/**
 		 * Initialise Algolia client
 		 * Docs: https://www.algolia.com/doc/javascript
 		 **/
 		var algolia_client = algoliaBundle.algoliasearch(algoliaConfig.applicationId, algoliaConfig.autocomplete.apiKey);
 		algolia_client.addAlgoliaAgent('Magento integration (' + algoliaConfig.extensionVersion + ')');
-		
+
 		/** Add autocomplete menu sections **/
 		if (algoliaConfig.autocomplete.nbOfProductsSuggestions > 0) {
 			algoliaConfig.autocomplete.sections.unshift({ hitsPerPage: algoliaConfig.autocomplete.nbOfProductsSuggestions, label: algoliaConfig.translations.products, name: "products"});
 		}
-		
+
 		if (algoliaConfig.autocomplete.nbOfCategoriesSuggestions > 0) {
 			algoliaConfig.autocomplete.sections.unshift({ hitsPerPage: algoliaConfig.autocomplete.nbOfCategoriesSuggestions, label: algoliaConfig.translations.categories, name: "categories"});
 		}
-		
+
 		if (algoliaConfig.autocomplete.nbOfQueriesSuggestions > 0) {
 			algoliaConfig.autocomplete.sections.unshift({ hitsPerPage: algoliaConfig.autocomplete.nbOfQueriesSuggestions, label: '', name: "suggestions"});
 		}
-		
+
 		/** Setup autocomplete data sources **/
 		var sources = [],
 			i = 0;
 		$.each(algoliaConfig.autocomplete.sections, function (name, section) {
 			var source = getAutocompleteSource(section, algolia_client, $, i);
-			
+
 			if (source) {
 				sources.push(source);
 			}
-			
+
 			/** Those sections have already specific placeholder, so do not use the default aa-dataset-{i} class **/
 			if (section.name !== 'suggestions' && section.name !== 'products') {
 				i++;
 			}
 		});
-		
+
+		var topSuggestions = [];
+		algolia_client
+			.initIndex(algoliaConfig.indexName + "_suggestions")
+			.search({ query: '', hitsPerPage: 4 })
+			.then(function(res) {
+				topSuggestions = res.hits;
+			});
+
+
+		sources.push({
+			name: 'emptyquery',
+			source: function(query, callback) {
+				if (query.length > 0) {
+					callback([]);
+				} else {
+					callback([{}]); // Return one element
+				}
+			},
+			templates: {
+				suggestion: function() {
+					const htmlSuggestions = topSuggestions.map(function (suggestion) {
+						return `<div>${suggestion.query}</div>`;
+					}).join('');
+
+					return '<div>' +
+						  '<div>Top searches</div>' +
+						  '<div>' + htmlSuggestions + '</div>' +
+						  '<div style="margin-top: 20px;">' +
+							'Static content' +
+						  '</div>' +
+						'</div>';
+				},
+			},
+		});
+
 		/**
 		 * Setup the autocomplete search input
 		 * For autocomplete feature is used Algolia's autocomplete.js library
@@ -64,36 +99,38 @@ document.addEventListener("DOMContentLoaded", function(event) {
 			var menu = $(this);
 			var options = {
 				hint: false,
+				minLength: 0,
+				openOnFocus: true,
 				templates: {
 					dropdownMenu: '#menu-template'
 				},
 				dropdownMenuContainer: "#algolia-autocomplete-container",
 				debug: algoliaConfig.autocomplete.isDebugEnabled
 			};
-			
+
 			if (isMobile() === true) {
 				// Set debug to true, to be able to remove keyboard and be able to scroll in autocomplete menu
 				options.debug = true;
 			}
-			
+
 			if (algoliaConfig.removeBranding === false) {
 				options.templates.footer = '<div class="footer_algolia"><a href="https://www.algolia.com/?utm_source=magento&utm_medium=link&utm_campaign=magento_autocompletion_menu" title="Search by Algolia" target="_blank"><img src="' +algoliaConfig.urls.logo + '" alt="Search by Algolia" /></a></div>';
 			}
 
 			sources = algolia.triggerHooks('beforeAutocompleteSources', sources, algolia_client, algoliaBundle);
 			options = algolia.triggerHooks('beforeAutocompleteOptions', options);
-			
+
 			if (typeof algoliaHookBeforeAutocompleteStart === 'function') {
 				console.warn('Deprecated! You are using an old API for Algolia\'s front end hooks. ' +
 					'Please, replace your hook method with new hook API. ' +
 					'More information you can find on https://community.algolia.com/magento/doc/m1/frontend-events/');
 
 				var hookResult = algoliaHookBeforeAutocompleteStart(sources, options, algolia_client);
-				
+
 				sources = hookResult.shift();
 				options = hookResult.shift();
 			}
-			
+
 			/** Bind autocomplete feature to the input */
 			$(this)
 				.autocomplete(options, sources)
@@ -107,24 +144,24 @@ document.addEventListener("DOMContentLoaded", function(event) {
 				}).on('autocomplete:selected', function (e, suggestion, dataset) {
 					location.assign(suggestion.url);
 				});
-			
+
 			$(window).resize(function () {
 				fixAutocompleteCssSticky(menu);
 			});
 		});
-		
+
 		// Hack to handle buggy onclick event on iOS
 		$(algoliaConfig.autocomplete.selector).each(function () {
 			var data = $(this).data('aaAutocomplete');
 			var dropdown = data.dropdown;
 			var suggestionClass = '.' + dropdown.cssClasses.prefix + dropdown.cssClasses.suggestion;
-			
+
 			var touchmoved;
 			dropdown.$menu.on('touchend', suggestionClass, function (e) {
 				if(touchmoved === false) {
 					e.preventDefault();
 					e.stopPropagation();
-					
+
 					var url = $(this).find('a').attr('href');
 					location.assign(url);
 				}

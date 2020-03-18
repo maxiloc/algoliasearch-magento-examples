@@ -1268,3 +1268,7 @@ a.ais-current-refined-values--link:hover
 .ais-infinite-hits--showmore > button:disabled {
   display:none !important;
 }
+
+.aa-with-emptyquery .aa-dataset-products, .aa-with-emptyquery .other-sections {
+  display: none;
+}
