@@ -70,22 +70,23 @@ document.addEventListener("DOMContentLoaded", function(event) {
 				if (query.length > 0) {
 					callback([]);
 				} else {
-					callback([{}]); // Return one element
+					callback(topSuggestions); // Return one element
 				}
 			},
 			templates: {
-				suggestion: function() {
-					const htmlSuggestions = topSuggestions.map(function (suggestion) {
-						return `<div>${suggestion.query}</div>`;
-					}).join('');
+				header: function () {
+					return '<div class="autocomplete__title">Les plus recherchés</div>';
+				},
+				suggestion: function(suggestion) {
+					var suggestion = suggestion.query ;
+					var tab = suggestion.split(" ");
+					var chaine = "";
 
-					return '<div>' +
-						  '<div>Top searches</div>' +
-						  '<div>' + htmlSuggestions + '</div>' +
-						  '<div style="margin-top: 20px;">' +
-							'Static content' +
-						  '</div>' +
-						'</div>';
+					for(var i=0; i<tab.length;i++)
+					{
+						chaine+=tab[i].substring(0,1).toUpperCase()+tab[i].substring(1,tab[i].length).toLowerCase()+" ";
+					}
+					return `<a class="" href="`+ algoliaConfig.baseUrl + `/catalogsearch/result/?q=`+ encodeURIComponent(suggestion) +`">${chaine}</a>`;
 				},
 			},
 		});
@@ -105,7 +106,6 @@ document.addEventListener("DOMContentLoaded", function(event) {
 					dropdownMenu: '#menu-template'
 				},
 				dropdownMenuContainer: "#algolia-autocomplete-container",
-				debug: algoliaConfig.autocomplete.isDebugEnabled
 			};
 
 			if (isMobile() === true) {
